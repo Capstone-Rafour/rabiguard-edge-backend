@@ -33,7 +33,7 @@ except ImportError:
 # -----------------------------------------------------------------------
 # Hailo NPU / VLM 초기화
 # -----------------------------------------------------------------------
-hailo_apps_dir = (Path(__file__).parent / "hailo-apps").resolve()
+hailo_apps_dir = (Path.home() / "hailo-apps").resolve()
 if str(hailo_apps_dir) not in sys.path:
     sys.path.insert(0, str(hailo_apps_dir))
 
@@ -128,7 +128,7 @@ def vlm_worker_thread():
                     max_generated_tokens=50
                 )
                 clean_text = response.split(". [{'type'")[0].split("<|im_end|>")[0].strip()
-                send_alert(crop_img, clean_text)
+                send_alert(context_img, clean_text)
                 
             except Exception as e:
                 print(f"⚠️ [VLM Worker] 추론 중 에러 발생: {e}")
@@ -227,17 +227,17 @@ def main():
                             print(f"👀 ID {track_id} 객체가 3초 이상 ROI에 머물렀습니다. VLM 분석 요청!")
                             state["notified"] = True
                             
-                            crop_x1, crop_y1 = max(0, x1), max(0, y1)
-                            crop_x2, crop_y2 = min(frame.shape[1], x2), min(frame.shape[0], y2)
-                            crop_img = frame[crop_y1:crop_y2, crop_x1:crop_x2].copy()
+                            # VLM에 더 많은 문맥을 제공하기 위해 객체가 표시된 전체 프레임 복사본을 전달
+                            context_img = frame.copy()
+                            cv2.rectangle(context_img, (x1, y1), (x2, y2), (0, 0, 255), 4) # 객체를 붉은색 박스로 강조
                             
-                            if crop_img.size > 0:
+                            if context_img.size > 0:
                                 try:
-                                    vlm_queue.put_nowait((crop_img, track_id))
+                                    vlm_queue.put_nowait((context_img, track_id))
                                 except queue.Full:
                                     try: vlm_queue.get_nowait()
                                     except queue.Empty: pass
-                                    vlm_queue.put_nowait((crop_img, track_id))
+                                    vlm_queue.put_nowait((context_img, track_id))
                                     print(f"🔄 VLM Queue 갱신 완료 (ID: {track_id} 최신 프레임 반영)")
 
             # Tracker State 정리
@@ -269,3 +269,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+()
