@@ -98,12 +98,12 @@ def vlm_worker_thread():
             except queue.Empty:
                 continue
                 
-            crop_img, track_id = item
-            
-            vlm_img = cv2.resize(crop_img, (336, 336))
+            context_img, track_id = item
+
+            vlm_img = cv2.resize(context_img, (336, 336))
             if len(vlm_img.shape) == 3 and vlm_img.shape[2] == 3:
                 vlm_img = cv2.cvtColor(vlm_img, cv2.COLOR_BGR2RGB)
-                
+
             prompt = [
                 {
                     "role": "system",
