@@ -1,0 +1,36 @@
+[
+    {
+        "id": "whiteboard_23",
+        "class_name": "whiteboard",
+        "confidence": 0.31,
+        "image_file": "whiteboard_23.jpg",
+        "bounding_box": [
+            670,
+            368,
+            863,
+            520
+        ],
+        "polygon_points": [
+            [
+                668,
+                374
+            ],
+            [
+                668,
+                512
+            ],
+            [
+                790,
+                522
+            ],
+            [
+                866,
+                508
+            ],
+            [
+                866,
+                364
+            ]
+        ]
+    }
+]
