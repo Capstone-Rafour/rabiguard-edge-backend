@@ -39,7 +39,7 @@ def propose_roi_from_image(image_path, env_name, model_path="yoloe-26n-seg-pf.pt
         print("❌ 잘못된 환경 선택입니다. 1~5 사이의 숫자를 입력하세요.")
         return
 
-    env_file_path = Path(__file__).parent / env_files[env_name]
+    env_file_path = Path(__file__).parent / "roi_obj_lists" / env_files[env_name]
     valid_tags = load_environment_tags(env_file_path)
     
     if not valid_tags:
