@@ -76,6 +76,8 @@ def propose_roi_from_image(image_path, env_name, model_path="yoloe-26n-seg-pf.pt
         height, width = frame.shape[:2]
         padding = 20 # 상하좌우 여유 공간 (픽셀)
 
+        vis_img = frame.copy()
+
         for i in range(len(boxes)):
             cls_id = int(boxes.cls[i].item())
             class_name = names[cls_id].lower()
@@ -97,6 +99,11 @@ def propose_roi_from_image(image_path, env_name, model_path="yoloe-26n-seg-pf.pt
                 epsilon = 0.015 * cv2.arcLength(polygon, True)
                 approx_polygon = cv2.approxPolyDP(polygon, epsilon, True)
                 roi_points = approx_polygon.reshape(-1, 2).tolist()
+
+                # --- 전체 시각화 이미지에 바운딩 박스와 다각형 그리기 ---
+                cv2.polylines(vis_img, [polygon], isClosed=True, color=(0, 255, 0), thickness=2)
+                cv2.rectangle(vis_img, (x1, y1), (x2, y2), color=(0, 0, 255), thickness=2)
+                cv2.putText(vis_img, f"{class_name} {conf:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
                 # --- Segmentation 마스크를 이용해 배경을 투명하게 잘라내기 ---
                 # 1. 빈 캔버스(마스크) 생성 및 객체의 외곽선 내부를 흰색(255)으로 채우기
@@ -136,14 +143,19 @@ def propose_roi_from_image(image_path, env_name, model_path="yoloe-26n-seg-pf.pt
     else:
         print("⚠️ 객체가 감지되지 않았습니다.")
 
-    # 결과 JSON 저장
+    # 결과 JSON 및 시각화 이미지 저장
     if proposals_info:
         json_path = proposals_dir / "proposals.json"
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(proposals_info, f, indent=4, ensure_ascii=False)
+            
+        vis_path = proposals_dir / "visualization.jpg"
+        cv2.imwrite(str(vis_path), vis_img)
+        
         print(f"\n🎉 총 {len(proposals_info)}개의 ROI 후보 객체를 추출했습니다.")
         print(f"📂 저장 경로: {proposals_dir}")
         print(f"📄 요약 정보: {json_path}")
+        print(f"🖼️ 시각화 이미지: {vis_path}")
     else:
         print("\n⚠️ 해당 환경에 적합한 객체를 화면에서 찾지 못했습니다.")
 
