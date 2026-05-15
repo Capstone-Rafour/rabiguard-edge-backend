@@ -73,6 +73,9 @@ def propose_roi_from_image(image_path, env_name, model_path="yoloe-26n-seg-pf.pt
         boxes = results[0].boxes
         names = model.names
 
+        height, width = frame.shape[:2]
+        padding = 20 # 상하좌우 여유 공간 (픽셀)
+
         for i in range(len(boxes)):
             cls_id = int(boxes.cls[i].item())
             class_name = names[cls_id].lower()
@@ -81,8 +84,12 @@ def propose_roi_from_image(image_path, env_name, model_path="yoloe-26n-seg-pf.pt
             if class_name in valid_tags:
                 conf = float(boxes.conf[i].item())
                 
-                # Bounding Box 좌표
-                x1, y1, x2, y2 = map(int, boxes.xyxy[i].cpu().numpy())
+                # Bounding Box 좌표 (패딩 추가 및 이미지 경계 초과 방지)
+                orig_x1, orig_y1, orig_x2, orig_y2 = map(int, boxes.xyxy[i].cpu().numpy())
+                x1 = max(0, orig_x1 - padding)
+                y1 = max(0, orig_y1 - padding)
+                x2 = min(width, orig_x2 + padding)
+                y2 = min(height, orig_y2 + padding)
                 
                 # Polygon 좌표 추출 및 단순화
                 polygon = masks.xy[i]
@@ -91,12 +98,23 @@ def propose_roi_from_image(image_path, env_name, model_path="yoloe-26n-seg-pf.pt
                 approx_polygon = cv2.approxPolyDP(polygon, epsilon, True)
                 roi_points = approx_polygon.reshape(-1, 2).tolist()
 
-                # 객체 부분만 크롭하여 이미지 저장
-                crop_img = frame[y1:y2, x1:x2].copy()
+                # --- Segmentation 마스크를 이용해 배경을 투명하게 잘라내기 ---
+                # 1. 빈 캔버스(마스크) 생성 및 객체의 외곽선 내부를 흰색(255)으로 채우기
+                mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+                cv2.fillPoly(mask, [polygon], 255)
+
+                # 2. 원본 이미지에 투명도(Alpha) 채널(BGRA) 추가
+                bgra_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
                 
-                # 파일 이름 생성 (클래스명_인덱스)
+                # 3. 투명도 채널에 마스크를 적용하여 배경을 투명하게 처리
+                bgra_frame[:, :, 3] = mask
+
+                # 4. 바운딩 박스 크기만큼 객체 부분만 크롭
+                crop_img = bgra_frame[y1:y2, x1:x2].copy()
+                
+                # 파일 이름 생성 (클래스명_인덱스) - 투명도를 지원하는 PNG로 확장자 변경
                 obj_id = f"{class_name.replace(' ', '_')}_{i}"
-                img_filename = f"{obj_id}.jpg"
+                img_filename = f"{obj_id}.png"
                 img_path = proposals_dir / img_filename
                 
                 if crop_img.size > 0:
