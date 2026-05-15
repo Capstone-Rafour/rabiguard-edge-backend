@@ -23,3 +23,15 @@
 [2026-04-17 13:20:09.461] [164913] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolo26n
 [2026-04-17 13:20:09.461] [164913] [HailoRT] [info] [hef.cpp:1963] [get_network_group_and_network_name] No name was given. Addressing all networks of default network_group: yolo26n
 [2026-04-17 13:20:09.523] [164913] [HailoRT] [error] [infer_model_hrpc_client.cpp:113] [configure] CHECK_SUCCESS failed with status=HAILO_HEF_NOT_COMPATIBLE_WITH_DEVICE(93)
+[2026-05-14 14:11:39.557] [9564] [HailoRT] [info] [vdevice.cpp:227] [create] Creating vdevice with params: device_count: 1, scheduling_algorithm: ROUND_ROBIN, multi_process_service: false
+[2026-05-14 14:11:39.580] [9564] [HailoRT] [info] [device.cpp:53] [Device] OS Version: Linux 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64
+[2026-05-14 14:14:28.727] [9778] [HailoRT] [info] [vdevice.cpp:227] [create] Creating vdevice with params: device_count: 1, scheduling_algorithm: ROUND_ROBIN, multi_process_service: false
+[2026-05-14 14:14:28.750] [9778] [HailoRT] [info] [device.cpp:53] [Device] OS Version: Linux 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64
+[2026-05-14 17:48:23.413] [11723] [HailoRT] [info] [vdevice.cpp:227] [create] Creating vdevice with params: device_count: 1, scheduling_algorithm: ROUND_ROBIN, multi_process_service: false
+[2026-05-14 17:48:23.454] [11723] [HailoRT] [info] [device.cpp:53] [Device] OS Version: Linux 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64
+[2026-05-15 11:49:13.773] [3032] [HailoRT] [info] [vdevice.cpp:227] [create] Creating vdevice with params: device_count: 1, scheduling_algorithm: ROUND_ROBIN, multi_process_service: false
+[2026-05-15 11:49:13.796] [3032] [HailoRT] [info] [device.cpp:53] [Device] OS Version: Linux 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64
+[2026-05-15 11:50:48.726] [3079] [HailoRT] [info] [vdevice.cpp:227] [create] Creating vdevice with params: device_count: 1, scheduling_algorithm: ROUND_ROBIN, multi_process_service: false
+[2026-05-15 11:50:48.750] [3079] [HailoRT] [info] [device.cpp:53] [Device] OS Version: Linux 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64
+[2026-05-15 11:52:22.461] [3119] [HailoRT] [info] [vdevice.cpp:227] [create] Creating vdevice with params: device_count: 1, scheduling_algorithm: ROUND_ROBIN, multi_process_service: false
+[2026-05-15 11:52:22.484] [3119] [HailoRT] [info] [device.cpp:53] [Device] OS Version: Linux 6.12.75+rpt-rpi-2712 #1 SMP PREEMPT Debian 1:6.12.75-1+rpt1 (2026-03-11) aarch64
