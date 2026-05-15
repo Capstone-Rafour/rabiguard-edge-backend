@@ -12,6 +12,7 @@
 #   실행 방법
 #    1 python3 npu_vlm_camera_ncnn.py
 
+import os
 import sys
 import time
 import queue
@@ -155,8 +156,11 @@ def main():
     print("🚀 실시간 객체 감지 및 VLM 상황 인식 시스템 시작")
     
     # 1. NCNN 형식의 YOLO 모델 로드 (ultralytics가 자동으로 ncnn 모듈을 백엔드로 사용함)
-    # yolo26n_ncnn_model 폴더 내의 파라미터와 bin 파일을 읽어 추론 수행
-    model_path = "yolo26n_ncnn_model"
+    # 현재 파일(__file__)의 절대 경로를 기준으로 프로젝트 최상위 폴더 내의 yolo26n_ncnn_model 폴더 지정
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(current_dir)
+    model_path = os.path.join(project_root, "yolo26n_ncnn_model")
+    
     print(f"📦 YOLO 모델(NCNN 백엔드) 로드 중: {model_path}")
     
     try:
