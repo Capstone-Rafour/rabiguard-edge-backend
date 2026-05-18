@@ -256,10 +256,6 @@ def main():
     if "--input" not in sys.argv:
         sys.argv.extend(["--input", video_path])
         print(f"🎬 비디오 파일 모드로 실행합니다: {video_path}")
-    
-    # GStreamer 파이프라인에서 기본 autovideosink 대신 fakesink를 사용하도록 강제 (--use-dummy-sink)
-    if "--use-dummy-sink" not in sys.argv:
-        sys.argv.append("--use-dummy-sink")
 
     model_path = os.path.join(project_root, "yolo26n_ncnn_model")
     model = YOLO(model_path, task="detect")
@@ -269,6 +265,7 @@ def main():
     
     user_data = ParallelAppCallback(model)
     app = GStreamerDepthApp(app_callback, user_data)
+    app.video_sink = "fakesink"
     
     try:
         app.run()
