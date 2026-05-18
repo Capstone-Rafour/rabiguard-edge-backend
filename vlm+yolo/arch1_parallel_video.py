@@ -3,6 +3,8 @@ import sys
 
 # GStreamer 하드웨어 디코더 플러그인 중 일부 픽셀 포맷과 충돌하는 모듈들을 비활성화
 os.environ["GST_PLUGIN_FEATURE_RANK"] = "vaapidecodebin:NONE,v4l2slh265dec:NONE,v4l2slh264dec:NONE,v4l2h265dec:NONE,v4l2h264dec:NONE"
+# Headless 환경(디스플레이가 없는 서버 등)에서 OpenCV GUI 관련 에러를 방지
+os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
 import time
 import queue
@@ -227,10 +229,11 @@ def app_callback(element, buffer, user_data):
         del tracker_state[d_id]
 
     cv2.polylines(frame, [ROI_POLYGON], isClosed=True, color=(255, 0, 0), thickness=2)
-    cv2.imshow("Arch1: Parallel YOLO + Depth (Video Input)", frame)
     
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        stop_event.set()
+    # Headless 환경 오류 방지를 위해 OpenCV 이미지 출력 부분을 주석 처리합니다.
+    # cv2.imshow("Arch1: Parallel YOLO + Depth (Video Input)", frame)
+    # if cv2.waitKey(1) & 0xFF == ord('q'):
+    #     stop_event.set()
 
 def main():
     # -----------------------------------------------------------------------
@@ -254,6 +257,10 @@ def main():
         sys.argv.extend(["--input", video_path])
         print(f"🎬 비디오 파일 모드로 실행합니다: {video_path}")
     
+    # GStreamer 파이프라인에서 기본 autovideosink 대신 fakesink를 사용하도록 강제 (--use-dummy-sink)
+    if "--use-dummy-sink" not in sys.argv:
+        sys.argv.append("--use-dummy-sink")
+
     model_path = os.path.join(project_root, "yolo26n_ncnn_model")
     model = YOLO(model_path, task="detect")
     
@@ -269,7 +276,7 @@ def main():
         stop_event.set()
     finally:
         stop_event.set()
-        cv2.destroyAllWindows()
+        # cv2.destroyAllWindows()
         vlm_thread.join()
 
 if __name__ == "__main__":
