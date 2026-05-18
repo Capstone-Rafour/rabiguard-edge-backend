@@ -118,6 +118,8 @@ class ParallelAppCallback(app_callback_class):
         super().__init__()
         self.model = model
         self.frame_count = 0
+        self.video_writer = None
+        self.video_writer = None
 
 def get_roi_depth(depth_map, x1, y1, x2, y2):
     # 경계값 확인
@@ -230,6 +232,23 @@ def app_callback(element, buffer, user_data):
 
     cv2.polylines(frame, [ROI_POLYGON], isClosed=True, color=(255, 0, 0), thickness=2)
     
+    # VideoWriter 초기화 (최초 1회)
+    if user_data.video_writer is None:
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "_outputs")
+        os.makedirs(output_dir, exist_ok=True)
+        output_path = os.path.join(output_dir, "output_arch1_video.mp4")
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        user_data.video_writer = cv2.VideoWriter(output_path, fourcc, 15.0, (width, height))
+        print(f"🎬 비디오 저장 시작: {output_path}")
+
+    # Depth 맵이 있으면 원본 프레임과 반투명하게 합성
+    if depth_map is not None:
+        depth_vis = np.clip(depth_map / 5.0 * 255, 0, 255).astype(np.uint8)
+        depth_colormap = cv2.applyColorMap(depth_vis, cv2.COLORMAP_JET)
+        frame = cv2.addWeighted(frame, 0.7, depth_colormap, 0.3, 0)
+
+    user_data.video_writer.write(frame)
+    
     # Headless 환경 오류 방지를 위해 OpenCV 이미지 출력 부분을 주석 처리합니다.
     # cv2.imshow("Arch1: Parallel YOLO + Depth (Video Input)", frame)
     # if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -273,6 +292,9 @@ def main():
         stop_event.set()
     finally:
         stop_event.set()
+        if user_data.video_writer is not None:
+            user_data.video_writer.release()
+            print("💾 비디오 저장 완료: _outputs/output_arch1_video.mp4")
         # cv2.destroyAllWindows()
         vlm_thread.join()
 
