@@ -219,6 +219,12 @@ def app_callback(element, buffer, user_data):
         stop_event.set()
 
 def main():
+    # -----------------------------------------------------------------------
+    # GStreamer 하드웨어 디코더 플러그인 중 일부 픽셀 포맷과 충돌하는 모듈들을 비활성화
+    # (depth_pipeline 내부에서 덮어씌울 수 있으므로 init 전에 강제로 다시 설정)
+    # -----------------------------------------------------------------------
+    os.environ["GST_PLUGIN_FEATURE_RANK"] = "vaapidecodebin:NONE,v4l2slh265dec:NONE,v4l2slh264dec:NONE,v4l2h265dec:NONE,v4l2h264dec:NONE"
+
     print("🚀 실시간 병렬 실행 (YOLO: CPU, SCDepthV3: NPU, VLM: NPU) - Video Input")
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
