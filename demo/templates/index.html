@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RabiGuard - Spatial Spatial-AI Dashboard</title>
+    <!-- Google Fonts: Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Main Style -->
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="pulse-dot"></span>
+                <h1 class="logo-text">RABI<span>GUARD</span></h1>
+                <div class="badge">MAC DEMO</div>
+            </div>
+            
+            <div class="telemetry-bar">
+                <div class="metric-item">
+                    <span class="label">FPS</span>
+                    <span class="value" id="fps-val">0.0</span>
+                </div>
+                <div class="metric-separator"></div>
+                <div class="metric-item">
+                    <span class="label">ACTIVE ZONES</span>
+                    <span class="value" id="zones-val">0</span>
+                </div>
+                <div class="metric-separator"></div>
+                <div class="metric-item">
+                    <span class="label">TRACK COUNT</span>
+                    <span class="value" id="tracks-val">0</span>
+                </div>
+                <div class="metric-separator"></div>
+                <div class="metric-item">
+                    <button id="btn-scan" class="btn btn-primary" style="padding: 8px 16px; background: rgba(147, 51, 234, 0.2); border-color: #c084fc; color: #e9d5ff;">🔍 Scan Room (Auto-ROI)</button>
+                </div>
+                <div class="metric-separator"></div>
+                <div class="metric-item">
+                    <span class="label">SYSTEM STATUS</span>
+                    <span class="status-indicator secured">SECURED</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN LAYOUT -->
+        <main class="main-grid">
+            
+            <!-- COLUMN 1: YOLOE SEGMENTATION (ON-DEMAND) -->
+            <section class="col-alerts">
+                <div class="card pipeline-card" style="height: 100%;">
+                    <div class="card-header">
+                        <h2>AUTO-ROI SCANNER (YOLOE)</h2>
+                        <span class="badge badge-purple" id="scan-status-badge">IDLE</span>
+                    </div>
+                    <div class="viewport-wrapper" style="aspect-ratio: 4/3; flex-grow: 0;">
+                        <img src="/seg_feed" id="seg-stream" alt="YOLOE Segmentation Stream">
+                        <div id="scan-overlay" class="modal-overlay hidden" style="background: rgba(147, 51, 234, 0.2); position: absolute;">
+                            <div class="scanning-indicator" style="text-align: center;">
+                                <div class="pulse-dot" style="width: 20px; height: 20px; background-color: #c084fc; margin: 0 auto 10px;"></div>
+                                <span style="color: white; font-weight: 700; text-shadow: 0 0 10px rgba(0,0,0,0.5);">SCANNING...</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding: 20px; font-size: 11px; color: var(--text-muted); line-height: 1.6;">
+                        <p>Automatically identifies large indoor objects (furniture, beds, etc.) and suggests monitoring zones.</p>
+                        <ul style="margin-top: 10px; margin-left: 15px;">
+                            <li>Press <strong>Scan Room</strong> to begin.</li>
+                            <li>Detection runs for 3 seconds.</li>
+                            <li>Old auto-zones are replaced.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- COLUMN 2: MAIN TRACKING VIEW & CONSOLE -->
+            <section class="col-main">
+                <!-- Camera Viewport Card -->
+                <div class="card viewport-card">
+                    <div class="card-header">
+                        <h2>PRIMARY MONITOR (YOLO TRACKING)</h2>
+                        <div class="draw-controls">
+                            <button id="btn-draw" class="btn btn-primary">➕ Draw Zone</button>
+                            <button id="btn-clear-draw" class="btn btn-secondary" disabled>Reset</button>
+                            <button id="btn-save" class="btn btn-success" disabled>Save Zone</button>
+                        </div>
+                    </div>
+                    <div class="viewport-wrapper">
+                        <!-- Main Video Feed -->
+                        <img src="/video_feed" id="video-stream" alt="YOLO Tracking Stream">
+                        <!-- Overlay Drawing Canvas -->
+                        <canvas id="drawing-canvas"></canvas>
+                        
+                        <!-- Drawing Modal overlay inside card -->
+                        <div id="zone-modal" class="modal-overlay hidden">
+                            <div class="modal-card">
+                                <h3>Save Custom Zone</h3>
+                                <div class="form-group">
+                                    <label for="zone-name">Zone ID / Name</label>
+                                    <input type="text" id="zone-name" placeholder="e.g. Zone_Bed_1">
+                                </div>
+                                <div class="form-group">
+                                    <label for="zone-threshold">Stay Duration Threshold (seconds)</label>
+                                    <input type="number" id="zone-threshold" value="2.0" step="0.5" min="0.5">
+                                </div>
+                                <div class="modal-actions">
+                                    <button id="btn-modal-cancel" class="btn btn-secondary">Cancel</button>
+                                    <button id="btn-modal-save" class="btn btn-success">Save</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Telemetry Console Card -->
+                <div class="card console-card">
+                    <div class="card-header">
+                        <h2>REAL-TIME SPATIAL CONSOLE</h2>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="telemetry-table">
+                            <thead>
+                                <tr>
+                                    <th>TRACK ID</th>
+                                    <th>ZONE MATCH</th>
+                                    <th>PERSON DEPTH</th>
+                                    <th>ZONE DEPTH</th>
+                                    <th>DEPTH DIFF</th>
+                                    <th>STATUS</th>
+                                    <th>ELAPSED</th>
+                                </tr>
+                            </thead>
+                            <tbody id="telemetry-body">
+                                <tr class="empty-row">
+                                    <td colspan="7">No active tracking targets in the scene.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Zone Management Card -->
+                <div class="card zone-management-card" style="height: 180px; flex-shrink: 0;">
+                    <div class="card-header">
+                        <h2>ACTIVE SPATIAL ZONES</h2>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="telemetry-table">
+                            <thead>
+                                <tr>
+                                    <th>ZONE ID</th>
+                                    <th>THRESHOLD</th>
+                                    <th>STATUS</th>
+                                    <th>ACTIONS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="zones-body">
+                                <tr class="empty-row">
+                                    <td colspan="4">Loading zones...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- COLUMN 3: DEPTH MAP & ALERTS LOG -->
+            <section class="col-pipeline">
+                <!-- Depth Estimation Card -->
+                <div class="card pipeline-card">
+                    <div class="card-header">
+                        <h2>PHASE 2: MONOCULAR DEPTH MAP</h2>
+                        <span class="badge badge-cyan">MiDaS</span>
+                    </div>
+                    <div class="viewport-wrapper mini-viewport">
+                        <img src="/depth_feed" alt="Depth Estimation Stream">
+                        <div class="viewport-overlay-label">Colorized Jet Heatmap</div>
+                    </div>
+                </div>
+
+                <!-- Alerts Card -->
+                <div class="card alerts-card" style="flex-grow: 1; min-height: 400px;">
+                    <div class="card-header">
+                        <h2>SPATIAL ALERTS FEED</h2>
+                        <button id="btn-clear-alerts" class="btn btn-text">Clear</button>
+                    </div>
+                    <div class="alerts-wrapper" id="alerts-container">
+                        <div class="no-alerts">
+                            <div class="no-alerts-icon">🛡️</div>
+                            <h3>No Intrusion Alerts</h3>
+                            <p>Spatial depth verification is currently monitoring for active breaches.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Main JavaScript Logic -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

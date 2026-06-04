@@ -16,7 +16,7 @@ venv_hailo_apps/
 .DS_Store
 
 # demo 폴더 설정: demo 폴더 안의 모든 내용물 무시
-demo/*
+# demo/*
 
 zones_config.json
 
