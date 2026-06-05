@@ -50,11 +50,16 @@ current_depth_frame = None
 current_seg_frame = None
 
 TARGET_FPS = 12
+DEPTH_INTERVAL = 6      # Run depth model every 6th frame (approx 2 FPS)
 DEPTH_THRESHOLD = 0.5   # Meters
 
 active_zones = {}       # zone_id -> zone dict
 tracker_states = {}     # zone_id -> {track_id -> {enter_time, notified}}
 alert_events = []       # List of triggered alerts
+
+# --- Caching ---
+last_depth_map = None
+last_color_depth = None
 
 # --- Scanning State ---
 is_scanning = False
@@ -71,6 +76,7 @@ if TARGET_LIST_PATH.exists():
                 obj = line.strip().lower()
                 if obj:
                     TARGET_OBJECTS.add(obj)
+        print(f"✅ Loaded {len(TARGET_OBJECTS)} target objects for auto-ROI scanning.")
     except Exception as e:
         print(f"❌ Error loading target objects: {e}")
 
@@ -151,6 +157,40 @@ class Camera:
         self.cap.release()
 
 # ------------------------------------------------------------
+# Utilities
+# ------------------------------------------------------------
+def calculate_iou(box1, box2):
+    """Calculates Intersection over Union (IoU) of two bounding boxes."""
+    x1 = max(box1[0], box2[0])
+    y1 = max(box1[1], box2[1])
+    x2 = min(box1[2], box2[2])
+    y2 = min(box1[3], box2[3])
+    
+    intersection = max(0, x2 - x1) * max(0, y2 - y1)
+    area1 = (box1[2] - box1[0]) * (box1[3] - box1[1])
+    area2 = (box2[2] - box2[0]) * (box2[3] - box2[1])
+    union = area1 + area2 - intersection
+    
+    return intersection / union if union > 0 else 0
+
+def merge_overlapping_zones(items, iou_threshold=0.4):
+    """Performs Non-Maximum Suppression (NMS) to merge overlapping detections."""
+    if not items:
+        return []
+    
+    # Sort by score descending
+    items = sorted(items, key=lambda x: x['score'], reverse=True)
+    keep = []
+    
+    while items:
+        best = items.pop(0)
+        keep.append(best)
+        # Keep items that have low overlap with the current best
+        items = [it for it in items if calculate_iou(best['box'], it['box']) < iou_threshold]
+        
+    return keep
+
+# ------------------------------------------------------------
 # Core Processing Thread
 # ------------------------------------------------------------
 stop_processing = threading.Event()
@@ -159,6 +199,7 @@ def processing_worker():
     global current_raw_frame, current_processed_frame, current_depth_frame, current_seg_frame
     global latest_telemetry, active_zones, tracker_states, alert_events
     global is_scanning, scan_end_time, auto_zones_buffer
+    global last_depth_map, last_color_depth
 
     print("🚀 [Processing Worker] Starting STABLE spatial AI pipeline...")
     
@@ -193,6 +234,7 @@ def processing_worker():
     fps_start_time = time.time()
     frame_count = 0
     last_process_time = 0
+    loop_idx = 0
 
     print("🏃 [Processing Worker] Entering main loop...")
 
@@ -207,16 +249,16 @@ def processing_worker():
         
         # Rate limit AI processing to TARGET_FPS, but keep loop spinning
         if now - last_process_time < target_interval:
-            # We still update the raw frame for 'idle' viewing if needed
             with state_lock:
                 current_raw_frame = frame.copy()
             time.sleep(0.005)
             continue
             
         last_process_time = now
+        loop_idx += 1
         frame = cv2.resize(frame, (640, 480))
         
-        # 1. YOLO Tracking
+        # 1. YOLO Tracking (Every Frame)
         frame_320 = cv2.resize(frame, (320, 320))
         tracks = []
         try:
@@ -225,21 +267,20 @@ def processing_worker():
                 boxes = results[0].boxes.xyxy.cpu().numpy()
                 track_ids = results[0].boxes.id.int().cpu().numpy()
                 for box, track_id in zip(boxes, track_ids):
-                    # Correct scale 320->640
+                    # Scale 320 -> 640
                     x1, y1, x2, y2 = map(int, [box[0]*2, box[1]*1.5, box[2]*2, box[3]*1.5])
                     tracks.append({"id": int(track_id), "bbox": [x1, y1, x2, y2], "center": [(x1+x2)//2, (y1+y2)//2]})
         except Exception: pass
 
-        # 2. Depth Estimation
-        depth_map_m = None
-        color_depth = None
-        try:
-            depth_map_m, color_depth = depth_estimator.estimate(frame)
-        except Exception: pass
-        
-        if depth_map_m is None:
-            depth_map_m = np.ones((480, 640), dtype=np.float32) * 5.0
-            color_depth = np.zeros((480, 640, 3), dtype=np.uint8)
+        # 2. Depth Estimation (Decoupled Frequency)
+        # MiDaS is the heaviest model. Only run it every DEPTH_INTERVAL frames.
+        if loop_idx % DEPTH_INTERVAL == 0 or last_depth_map is None:
+            try:
+                last_depth_map, last_color_depth = depth_estimator.estimate(frame)
+            except Exception:
+                if last_depth_map is None:
+                    last_depth_map = np.ones((480, 640), dtype=np.float32) * 5.0
+                    last_color_depth = np.zeros((480, 640, 3), dtype=np.uint8)
 
         # 3. YOLOE Scan Logic
         if is_scanning and now < scan_end_time:
@@ -250,17 +291,34 @@ def processing_worker():
                     for box in seg_results[0].boxes:
                         class_name = names[int(box.cls[0].item())].lower()
                         if class_name in TARGET_OBJECTS:
-                            b = box.xyxy[0].cpu().numpy().astype(int)
-                            if class_name not in auto_zones_buffer: auto_zones_buffer[class_name] = []
-                            auto_zones_buffer[class_name].append([[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]])
+                            box_xyxy = box.xyxy[0].cpu().numpy().tolist()
+                            score = float(box.conf[0].item())
+                            
+                            # Convert bounding box to 4-point rectangular polygon
+                            b = list(map(int, box_xyxy))
+                            poly = [[b[0], b[1]], [b[2], b[1]], [b[2], b[3]], [b[0], b[3]]]
+                                
+                            if class_name not in auto_zones_buffer: 
+                                auto_zones_buffer[class_name] = []
+                            auto_zones_buffer[class_name].append({"box": box_xyxy, "score": score, "poly": poly})
             except Exception: pass
         elif is_scanning and now >= scan_end_time:
             with state_lock:
                 is_scanning = False
+                # Clear previous auto zones, keep custom ones
                 active_zones = {k: v for k, v in active_zones.items() if v.get("class_name") != "auto"}
-                for cn, polys in auto_zones_buffer.items():
-                    for i, p in enumerate(polys):
-                        active_zones[f"Auto_{cn}_{i+1}"] = {"polygon": p, "enter_threshold_sec": 2.0, "is_active": True, "class_name": "auto"}
+                
+                for cn, items in auto_zones_buffer.items():
+                    # Merge overlapping detections across multiple frames
+                    merged_items = merge_overlapping_zones(items, iou_threshold=0.4)
+                    
+                    for i, item in enumerate(merged_items):
+                        active_zones[f"Auto_{cn}_{i+1}"] = {
+                            "polygon": item["poly"],
+                            "enter_threshold_sec": 2.0,
+                            "is_active": True,
+                            "class_name": "auto"
+                        }
             auto_zones_buffer.clear()
 
         # 4. Spatial Verification
@@ -283,15 +341,15 @@ def processing_worker():
                 poly = np.array(zone_data["polygon"], dtype=np.int32)
                 if cv2.pointPolygonTest(poly, (cx, cy), False) >= 0:
                     matched_zone_id = zone_id
-                    # Person Depth
+                    # Person Depth (Using cached depth map)
                     pad_w, pad_h = int((x2-x1)*0.25), int((y2-y1)*0.25)
-                    roi_p = depth_map_m[max(0,y1+pad_h):min(480,y2-pad_h), max(0,x1+pad_w):min(640,x2-pad_w)]
+                    roi_p = last_depth_map[max(0,y1+pad_h):min(480,y2-pad_h), max(0,x1+pad_w):min(640,x2-pad_w)]
                     p_depth = float(np.mean(roi_p[roi_p > 0.1])) if roi_p.size > 0 else 0.0
                     
-                    # Zone Floor Depth
+                    # Zone Floor Depth (Using cached depth map)
                     mask = np.zeros((480, 640), dtype=np.uint8)
                     cv2.fillPoly(mask, [poly], 255)
-                    roi_z = depth_map_m[mask > 0]
+                    roi_z = last_depth_map[mask > 0]
                     z_depth = float(np.mean(roi_z[roi_z > 0.1])) if roi_z.size > 0 else 0.0
                     
                     diff = abs(p_depth - z_depth)
@@ -318,7 +376,7 @@ def processing_worker():
 
         with state_lock:
             current_raw_frame = frame
-            current_processed_frame, current_depth_frame = processed_frame, color_depth
+            current_processed_frame, current_depth_frame = processed_frame, last_color_depth
             if current_seg_frame is None or frame_count % 30 == 0: current_seg_frame = frame.copy()
             
             frame_count += 1
@@ -392,7 +450,12 @@ def manage_zones():
 def delete_zone(zone_id):
     global active_zones
     with state_lock:
-        if zone_id in active_zones: del active_zones[zone_id]; return jsonify({"success": True})
+        if zone_id in active_zones:
+            del active_zones[zone_id]
+            try:
+                with open(ZONES_CONFIG_PATH, "w", encoding="utf-8") as f: json.dump(active_zones, f, indent=4)
+            except Exception: pass
+            return jsonify({"success": True})
     return jsonify({"success": False}), 404
 
 @app.route("/api/scan", methods=["POST"])
